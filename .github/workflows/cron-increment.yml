@@ -1,4 +1,4 @@
-name: Scheduled Increment (48h)
+name: Scheduled Increment (5 mins)
 on:
   schedule:
     - cron: "*/5 * * * *"
