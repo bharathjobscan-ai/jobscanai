@@ -1,0 +1,31 @@
+---
+name: Schedule Debugger
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print run details
+        run: |
+          echo "=== SCHEDULE DEBUG RUN ==="
+          echo "EVENT: $GITHUB_EVENT_NAME"
+          echo "REF: $GITHUB_REF"
+          echo "RUN_ID: $GITHUB_RUN_ID"
+          echo "RUN_NUMBER: $GITHUB_RUN_NUMBER"
+          echo "REPO: $GITHUB_REPOSITORY"
+          date -u +"UTC: %Y-%m-%d %H:%M:%S"
+      
+      - name: Show workflow files
+        run: |
+          echo "Listing workflow files:"
+          ls -la .github/workflows || true
+          echo "----"
+          for f in .github/workflows/*.yml; do
+            echo "---- $f ----"
+            sed -n '1,200p' "$f" || true
+          done
