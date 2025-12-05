@@ -1,0 +1,17 @@
+name: Scheduled Increment (48h)
+on:
+  schedule:
+    - cron: '0 2 */2 * *'
+  workflow_dispatch:
+
+jobs:
+  call-increment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call increment endpoint
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          INCREMENT_SECRET: ${{ secrets.INCREMENT_SECRET }}
+        run: |
+          curl -s -X POST "${API_BASE_URL}/api/increment" -H "x-service-token: ${INCREMENT_SECRET}" -o /tmp/res.json
+          cat /tmp/res.json
