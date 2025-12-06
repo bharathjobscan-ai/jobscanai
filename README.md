@@ -1,93 +1,195 @@
-# JobScanAI
-This tool is for scanning Visa Sponsored Jobs across the world and help in applying
+# JobScan AI - Module 1 Ingestion POC
 
-## Hello World Backend POC
+Job ingestion and scoring system with visa sponsorship intelligence.
 
-This is a proof of concept backend using Vercel serverless functions and GitHub Actions automation.
+## Overview
 
-### Project Structure
+This POC demonstrates the core ingestion pipeline:
+1. Fetch raw HTML from job posting URLs
+2. Normalize and parse job data using heuristics
+3. Score visa sponsorship likelihood
+4. Compute overall relevance scores
+5. Store results in Supabase
+
+## Setup
+
+### Prerequisites
+- Node.js 16+
+- Supabase account and project
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
+```
+
+### Install Dependencies
+
+```bash
+npm install
+```
+
+### Database Setup
+
+Run the migration script in your Supabase SQL editor:
+
+```bash
+migrations/001_module1.sql
+```
+
+This creates the following tables:
+- `job_raw` - Raw HTML storage
+- `job_normalized` - Normalized job data with scores
+- `company_registry` - Known visa sponsors
+- `ingestion_log` - Audit trail
+
+## API Endpoints
+
+### POST /api/ingest/manual
+
+Ingest a job posting from a URL.
+
+**Request:**
+```json
+{
+  "url": "https://www.linkedin.com/jobs/view/123456",
+  "resume_baseline": {
+    "skills": ["JavaScript", "Python", "React"],
+    "keywords": ["software engineer", "full stack"],
+    "domains": ["Backend", "Cloud"],
+    "preferred_companies": ["Google", "Microsoft"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "job_normalized_id": 123,
+  "title": "Senior Software Engineer",
+  "company": "Google",
+  "visa_score": 90,
+  "relevance_score": 85
+}
+```
+
+### GET /api/jobs
+
+List normalized jobs with optional filters.
+
+**Query Parameters:**
+- `country` - Filter by location (e.g., "USA", "Canada")
+- `min_score` - Minimum relevance score (0-100)
+
+**Example:**
+```bash
+GET /api/jobs?country=USA&min_score=70
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 10,
+  "jobs": [
+    {
+      "id": 123,
+      "title": "Senior Software Engineer",
+      "company": "Google",
+      "location": "Mountain View, CA",
+      "visa_score_int": 90,
+      "relevance_score": 85,
+      "skill_tags": ["JavaScript", "Python", "React"],
+      "domain_tags": ["Backend", "Cloud"]
+    }
+  ]
+}
+```
+
+## Scoring System
+
+### Visa Score (0-100)
+- **High (90-100)**: Explicit sponsorship mentioned
+- **Medium (50-89)**: Visa keywords or known sponsor
+- **Low (0-49)**: No information or negative signals
+
+### Relevance Score (0-100)
+Weighted combination of:
+- Visa Score: 40%
+- Resume Relevance: 25%
+- Skills Match: 20%
+- Company Preference: 10%
+- Domain Match: 5%
+
+**Floor Multiplier:**
+- Visa score < 30: 50% penalty
+- Visa score < 50: 25% penalty
+
+## Testing Locally
+
+### Using Vercel CLI
+
+```bash
+vercel dev
+```
+
+### Test with Sample Data
+
+```bash
+curl -X POST http://localhost:3000/api/ingest/manual \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/job",
+    "resume_baseline": {
+      "skills": ["JavaScript", "React"],
+      "keywords": ["software engineer"]
+    }
+  }'
+```
+
+### List Jobs
+
+```bash
+curl http://localhost:3000/api/jobs?min_score=50
+```
+
+## Project Structure
 
 ```
 jobscanai/
-├── package.json              # Node.js dependencies and scripts
-├── vercel.json              # Vercel deployment configuration
 ├── api/
-│   ├── hello.js            # Simple Hello World endpoint
-│   └── increment.js        # Counter increment endpoint (GET/POST)
-├── .github/
-│   └── workflows/
-│       └── cron-increment.yml  # GitHub Actions cron job
+│   ├── ingest/
+│   │   └── manual.js          # POST handler for job ingestion
+│   └── jobs/
+│       └── index.js           # GET handler for job listing
+├── lib/
+│   ├── normalizers/
+│   │   └── basic.js           # HTML normalization logic
+│   ├── visa_intel/
+│   │   └── basic.js           # Visa scoring logic
+│   └── scoring/
+│       └── simple.js          # Relevance scoring logic
+├── migrations/
+│   └── 001_module1.sql        # Database schema
+├── tests/
+│   └── fixtures/
+│       └── sample_linkedin.html  # Sample HTML for testing
+├── package.json
 └── README.md
 ```
 
-### API Endpoints
+## Next Steps
 
-#### `/api/hello`
-- **Method**: GET
-- **Description**: Returns a simple Hello World message with timestamp
-- **Response**:
-  ```json
-  {
-    "message": "Hello World!",
-    "timestamp": "2025-01-12T11:16:00.000Z",
-    "method": "GET"
-  }
-  ```
+1. **Enhanced Parsing**: Add platform-specific parsers (LinkedIn, Indeed, etc.)
+2. **ML Models**: Replace heuristics with trained models
+3. **Batch Processing**: Add scheduled crawling
+4. **User Profiles**: Store resume baselines per user
+5. **Real-time Updates**: WebSocket notifications for new matches
 
-#### `/api/increment`
-- **Methods**: GET, POST
-- **Description**: Counter endpoint (Note: Uses in-memory storage, resets on cold starts)
-- **GET**: Returns current counter value
-- **POST**: Increments the counter and returns new value
-- **Response**:
-  ```json
-  {
-    "message": "Counter incremented",
-    "counter": 5,
-    "timestamp": "2025-01-12T11:16:00.000Z"
-  }
-  ```
+## License
 
-### Setup & Deployment
-
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-2. **Run locally**:
-   ```bash
-   npm run dev
-   ```
-
-3. **Deploy to Vercel**:
-   ```bash
-   npm run deploy
-   ```
-
-### GitHub Actions Configuration
-
-The cron job (`.github/workflows/cron-increment.yml`) runs every hour to call the increment endpoint.
-
-**Required Secret**:
-- `API_URL`: Your deployed Vercel URL (e.g., `https://your-app.vercel.app`)
-
-To add this secret:
-1. Go to your GitHub repository settings
-2. Navigate to Secrets and Variables > Actions
-3. Add a new repository secret named `API_URL`
-
-### Local Testing
-
-Test the endpoints locally:
-
-```bash
-# Test hello endpoint
-curl http://localhost:3000/api/hello
-
-# Test increment GET
-curl http://localhost:3000/api/increment
-
-# Test increment POST
-curl -X POST http://localhost:3000/api/increment
-```
+ISC
