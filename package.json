@@ -9,9 +9,9 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^17.2.3",
     "node-fetch": "^2.7.0"
   },
-  "devDependencies": {},
   "keywords": [],
   "author": "",
   "license": "ISC"
