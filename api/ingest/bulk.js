@@ -166,7 +166,7 @@ async function processJobInBackground(jobRawId, url, html) {
     // Import processing modules
     const normalizer = await import('../../lib/normalizers/enhanced.js');
     const visaIntel = await import('../../lib/visa_intel/enhanced.js');
-    const scorer = await import('../../lib/scoring/enhanced.js');
+    const multiScore = await import('../../lib/scoring/multi-score.js');
 
     // Normalize the HTML
     const normalized = normalizer.normalizeJobHTML(html, url);
@@ -186,14 +186,22 @@ async function processJobInBackground(jobRawId, url, html) {
       .limit(1)
       .single();
 
-    // Calculate score
-    const scoring = await scorer.calculateEnhancedScore(
+    // Get scoring config
+    const { data: config } = await supabase
+      .from('scoring_config')
+      .select('*')
+      .eq('config_name', 'default')
+      .single();
+
+    // Calculate multi-score
+    const scoring = multiScore.calculateMultiScore(
       normalized,
+      profile || {},
       visaData,
-      profile
+      config || {}
     );
 
-    // Store normalized job
+    // Store normalized job with multi-scores
     await supabase
       .from('job_normalized')
       .insert({
@@ -214,7 +222,14 @@ async function processJobInBackground(jobRawId, url, html) {
         recruiter_email: normalized.recruiter_email,
         recruiter_type: normalized.recruiter_type,
         
-        // Visa scoring
+        // Multi-Score System (Phase 1.5)
+        visa_score: scoring.visa_score,
+        resume_match_score: scoring.resume_match_score,
+        job_relevance_score: scoring.job_relevance_score,
+        overall_score: scoring.overall_score,
+        score_breakdown: scoring.breakdown,
+        
+        // Legacy fields (kept for backward compatibility)
         visa_confidence: visaData.confidence,
         visa_score_int: visaData.score,
         visa_categories: visaData.categories,
@@ -224,28 +239,13 @@ async function processJobInBackground(jobRawId, url, html) {
         visa_community_score: visaData.community_score,
         visa_jd_keywords_score: visaData.jd_keywords_score,
         
-        // Relevance scoring
-        relevance_skills_score: scoring.relevance.skills_score,
-        relevance_experience_score: scoring.relevance.experience_score,
-        
-        // Realism scoring
-        realism_hiring_score: scoring.realism.hiring_score,
-        realism_seniority_score: scoring.realism.seniority_score,
-        realism_location_score: scoring.realism.location_score,
-        
-        // Strategic scoring
-        strategic_salary_score: scoring.strategic.salary_score,
-        strategic_industry_score: scoring.strategic.industry_score,
-        strategic_growth_score: scoring.strategic.growth_score,
-        
         // Overall
-        total_score: scoring.total_score,
-        score_breakdown: scoring.breakdown,
+        total_score: scoring.overall_score,
         recommendation: scoring.recommendation,
-        relevance_score: scoring.total_score
+        relevance_score: scoring.overall_score
       });
 
-    console.log(`Successfully processed job: ${url}`);
+    console.log(`Successfully processed job: ${url} - Score: ${scoring.overall_score}/100`);
   } catch (error) {
     console.error(`Failed to process job ${url}:`, error);
     
