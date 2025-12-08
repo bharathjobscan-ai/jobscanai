@@ -27,7 +27,9 @@ const supabase = createClient(
 // Registry URLs (as of 2024)
 const REGISTRY_SOURCES = {
   UK: {
-    url: 'https://assets.publishing.service.gov.uk/media/65bb6a88d7e51c000d8d0571/2024-01-31_-_Worker_and_Temporary_Worker.csv',
+    // Updated URL - UK government frequently updates this file
+    // Main page: https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers
+    url: 'https://assets.publishing.service.gov.uk/media/674cd67bf51b6ac3ccfcc09f/2024-12-02_-_Worker_and_Temporary_Worker.csv',
     type: 'csv',
     name: 'UK Home Office Skilled Worker Sponsor List'
   },
