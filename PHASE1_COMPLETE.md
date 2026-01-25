@@ -57,54 +57,104 @@ curl -X POST https://your-domain.vercel.app/api/ingest/bulk \
 
 **Multi-Tier Analysis:**
 
-**Tier 1 - Official (20 pts)**
+**Tier 1 - Official Registry (20 pts)**
 - Government sponsor registry matching
 - License verification
+- Country-specific sponsor lookup
 
-**Tier 2 - Community (10 pts)**
+**Tier 2 - Community Intelligence (10 pts)**
 - Reddit mentions
 - Glassdoor reviews
 - Forum discussions
 
-**Tier 3 - Signals (5 pts)**
-- Job description keywords
-- Explicit sponsorship mentions
+**Tier 3 - Job Description Signals (5 pts)**
+- Visa sponsorship keywords
+- Explicit mentions
+- Negative signal detection
 
-**Additional Checks:**
-- Recent sponsorship activity (15 pts)
+**Additional Factors:**
+- Recent sponsorship activity (up to 15 pts)
 - Salary threshold validation (penalties if below)
-- Red flag detection
+- Red flag detection ("no sponsorship" keywords)
+
+**Registry Sources:**
+| Country | Source | URL |
+|---------|--------|-----|
+| UK | Home Office | skilled-worker-sponsor-list.csv |
+| NL | IND | Recognised Sponsors List |
+| AU | DHA | TSS Occupations List |
+| CA | ESDC | LMIA Public Registry |
 
 ### 5. Enhanced Scoring Engine
-**File:** `lib/scoring/enhanced.js`
+**Files:** `lib/scoring/enhanced.js` (4-component) and `lib/scoring/multi-score.js` (3-component)
 
-**Configurable 4-Component System (0-100):**
+#### **Multi-Score System (Active) - `lib/scoring/multi-score.js`**
 
-1. **Visa Sponsorship (50%)** - The USP
-   - Registry match: 20 pts
-   - Recent activity: 15 pts
-   - Community signals: 10 pts
-   - JD keywords: 5 pts
+**3-Component Weighted System:**
 
-2. **Job Relevance (25%)**
-   - Skills match: 15 pts
-   - Experience level: 10 pts
+| Component | Weight | Max Points |
+|-----------|--------|------------|
+| **Visa Score** | 40% | 100 |
+| **Resume Match Score** | 35% | 100 |
+| **Job Relevance Score** | 25% | 100 |
 
-3. **Application Realism (15%)**
-   - Hiring trends: 5 pts
-   - Seniority match: 5 pts
-   - Location: 5 pts
+**Overall Score = (Visa × 0.40) + (Resume × 0.35) + (Relevance × 0.25)**
 
-4. **Strategic Value (10%)**
-   - Salary band: 5 pts
-   - Industry demand: 3 pts
-   - Career growth: 2 pts
+---
+
+**Visa Score Breakdown (Actual from `lib/scoring/multi-score.js`):**
+| Factor | Points | Description |
+|--------|--------|-------------|
+| Registry Match | 40 pts | Official government sponsor (Tier 1) |
+| Recent Activity | 20 pts | Sponsorship activity in last 6 months |
+| Community Signals | 20 pts | Reddit/Glassdoor positive mentions |
+| JD Keywords | 10 pts | Explicit sponsorship keywords |
+| Salary Threshold | 10 pts | Meets minimum visa salary requirement |
+
+**Total:** 100 points possible before penalties
 
 **Penalties:**
-- "No sponsorship": -30
-- Agency recruiter: -10
-- Negative community: -15
-- Below salary threshold: -20
+- "No sponsorship" mentioned: -30 pts
+- Agency recruiter: -10 pts
+- Negative community signals: -15 pts
+
+---
+
+**Resume Match Score Breakdown (0-100):**
+| Skill Category | Max Points | Weight |
+|----------------|------------|--------|
+| Domain Skills (must-have) | 50 pts | 50% |
+| Core PM Skills | 30 pts | 30% |
+| PM Tools | 15 pts | 15% |
+| Technical/Nice-to-have | 5 pts | 5% |
+
+---
+
+**Job Relevance Score Breakdown (0-100):**
+| Factor | Points |
+|--------|--------|
+| Location Match | 25 pts |
+| Salary Match | 25 pts |
+| Role/Seniority Match | 25 pts |
+| Experience Level | 15 pts |
+| Industry/Company | 10 pts |
+
+---
+
+#### **Enhanced 4-Component System (Legacy) - `lib/scoring/enhanced.js`**
+
+| Component | Weight |
+|-----------|--------|
+| Visa Sponsorship | 50% |
+| Job Relevance | 25% |
+| Application Realism | 15% |
+| Strategic Value | 10% |
+
+**Penalties:**
+- "No sponsorship": -30 pts
+- Agency recruiter: -10 pts
+- Negative community signals: -15 pts
+- Below salary threshold: -20 pts
 
 **Output Example:**
 ```

@@ -1,8 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const fetch = require('node-fetch');
-const { normalizeHtml } = require('../../lib/normalizers/basic');
-const { computeVisaFromNormalized } = require('../../lib/visa_intel/basic');
-const { computeScore } = require('../../lib/scoring/simple');
+const { normalizeJobHTML } = require('../../lib/normalizers/enhanced');
+const { analyzeVisaSponsorship } = require('../../lib/visa_intel/enhanced');
+const { calculateMultiScore } = require('../../lib/scoring/multi-score');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -43,19 +43,27 @@ module.exports = async (req, res) => {
     }
 
     // Normalize the HTML
-    const normalized = normalizeHtml(html, url);
+    const normalized = normalizeJobHTML(html, url);
 
-    // Get company registry for visa scoring
-    const { data: companyRegistry } = await supabase
-      .from('company_registry')
-      .select('*');
+    // Get user profile for scoring
+    const { data: profileData } = await supabase
+      .from('user_profile')
+      .select('*')
+      .limit(1)
+      .single();
 
     // Compute visa score
-    const visaResult = computeVisaFromNormalized(normalized, companyRegistry || []);
+    const visaResult = await analyzeVisaSponsorship(
+      normalized.company,
+      normalized.location,
+      normalized.normalized_text,
+      normalized.salary
+    );
 
-    // Compute overall score
+    // Compute overall score using multi-score system
     const resumeBaseline = resume_baseline || {};
-    const score = computeScore(normalized, resumeBaseline, visaResult.visa_score_int);
+    const profile = profileData || {};
+    const multiScore = calculateMultiScore(normalized, profile, visaResult);
 
     // Store normalized job
     const { data: normalizedJob, error: normalizedError } = await supabase
@@ -66,14 +74,23 @@ module.exports = async (req, res) => {
         title: normalized.title,
         company: normalized.company,
         location: normalized.location,
+        country_code: normalized.country_code,
         normalized_text: normalized.normalized_text,
-        skill_tags: normalized.skill_tags,
-        domain_tags: normalized.domain_tags,
-        visa_confidence: visaResult.visa_confidence,
-        visa_score_int: visaResult.visa_score_int,
-        visa_categories: visaResult.visa_categories,
+        skill_tags: normalized.skills,
+        domain_tags: normalized.domains,
+        is_remote: normalized.is_remote,
+        salary_min: normalized.salary?.min,
+        salary_max: normalized.salary?.max,
+        salary_currency: normalized.salary?.currency,
+        visa_score_int: visaResult.score,
+        visa_confidence: visaResult.confidence,
+        visa_categories: visaResult.categories,
         visa_explanation: visaResult.explanation,
-        relevance_score: score,
+        overall_score: multiScore.overall_score,
+        visa_score: multiScore.visa_score,
+        resume_match_score: multiScore.resume_match_score,
+        job_relevance_score: multiScore.job_relevance_score,
+        recommendation: multiScore.recommendation?.action,
         ingested_at: new Date().toISOString()
       })
       .select()
@@ -99,8 +116,9 @@ module.exports = async (req, res) => {
       job_normalized_id: normalizedJob.id,
       title: normalized.title,
       company: normalized.company,
-      visa_score: visaResult.visa_score_int,
-      relevance_score: score
+      overall_score: multiScore.overall_score,
+      visa_score: visaResult.score,
+      recommendation: multiScore.recommendation
     });
   } catch (error) {
     console.error('Ingestion error:', error);
